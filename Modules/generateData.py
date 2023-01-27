@@ -1,4 +1,4 @@
-from Modules.helper.imports.functionImports import extractMappings, extractRelationInstances, checkFile, checkPath, getWikiArticles
+from Modules.helper.imports.functionImports import extractMappings, extractRelationInstances, checkFile, checkPath, getWikiArticles, getWikiSummaries
 from Modules.helper.imports.packageImports import argparse, sys, pickle, logging, np
 from Modules.helper.imports.configImports import dataConfig
 
@@ -89,6 +89,12 @@ parser.add_argument(
     default="wikiArticles.pkl"
 )
 
+parser.add_argument(
+    "-article",
+    action="store_true",
+    help="Boolean flag to be used in wiki mode to generate articles instead of summaries"
+)
+
 
 args = parser.parse_args()
 
@@ -106,6 +112,7 @@ mid2nameFile = args.mid2name
 entitiesFile = args.entities
 relationsFile = args.relations
 wikiArticlesFile = args.wikiArticles
+article = args.article
 
 if pickRelations and numSamples==None:
     logging.critical("Need to specify numSamples to indicate no. of relations to choose in pickRelations mode")
@@ -130,7 +137,19 @@ if wiki:
         for i in range(10):
             print(f"\t{wikiTitles[i]}")
     else:
-        wikiArticles = getWikiArticles(numSamples)
+        if article:
+            wikiArticles = getWikiArticles(numSamples, debug)
+        else: 
+            checkFile(mid2nameFile, ".pkl")
+            checkFile(entitiesFile, ".pkl")
+
+            with open(mid2nameFile, 'rb') as f:
+                mid2name = pickle.load(f)
+
+            with open(entitiesFile, 'rb') as f:
+                entities = pickle.load(f)
+
+            wikiArticles = getWikiSummaries(entities, mid2name, debug)
         with open(f'{wikiArticlesFile.split(".pkl")[0]}_{numSamples}.pkl', 'wb') as f:
             pickle.dump(wikiArticles, f)
 else:

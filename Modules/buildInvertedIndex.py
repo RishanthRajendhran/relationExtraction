@@ -1,4 +1,4 @@
-from Modules.helper.imports.functionImports import checkFile, extractSentences, extractWords
+from Modules.helper.imports.functionImports import checkFile, extractSentences, extractWords, resolveCorefences
 from Modules.helper.imports.packageImports import argparse, sys, pickle, logging
 from Modules.helper.imports.configImports import dataConfig
 
@@ -52,6 +52,8 @@ with open(wikiFile, 'rb') as f:
 allArticles = []
 for k in wikiArticles.keys():
     allArticles.append(wikiArticles[k])
+
+allArticles = resolveCorefences(allArticles, debug)
 allSentences = extractSentences(allArticles, debug)
 allWords = extractWords(allSentences, debug)
 

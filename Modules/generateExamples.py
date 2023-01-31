@@ -1,6 +1,5 @@
 from Modules.helper.imports.functionImports import checkFile, extractWords
-from Modules.helper.imports.packageImports import argparse, sys, pickle, logging, np
-from Modules.helper.imports.configImports import dataConfig
+from Modules.helper.imports.packageImports import argparse, pickle, logging, np
 
 parser = argparse.ArgumentParser()
 
@@ -80,40 +79,62 @@ with open(relationsFile, 'rb') as f:
 with open(invertedIndexFile, "rb") as f:
     invertedIndex = pickle.load(f)
 
+def getVals(keyToRetrieve, dictionaryWithVals):
+    if keyToRetrieve in dictionaryWithVals.keys():
+        return dictionaryWithVals[keyToRetrieve]
+    if keyToRetrieve.lower() in dictionaryWithVals.keys():
+        return dictionaryWithVals[keyToRetrieve.lower()]
+    return None
+
 for reln in relations:
     print(reln)
     for relInst in relations[reln]:
+        if relInst[0] not in mid2name.keys():
+            if debug:
+                logging.warning(f"No mapping found in mid2name for {relInst[0]}")
+            continue
+        if relInst[1] not in mid2name.keys():
+            if debug:
+                logging.warning(f"No mapping found in mid2name for {relInst[1]}")
+            continue
         entity_1 = mid2name[relInst[0]]
         entity_2 = mid2name[relInst[1]]
         sents_1 = []
         for name in entity_1:
             wordsInName = extractWords(name)
-            reqSents = []
-            if wordsInName[0] in invertedIndex["index"].keys():
-                reqSents = invertedIndex["index"][wordsInName[0]]
+            if len(wordsInName) == 0:
+                continue
+            reqSents = getVals(wordsInName[0], invertedIndex["index"])
+            if reqSents:
                 for i in range(1,len(wordsInName)):
-                    if wordsInName[i] in invertedIndex["index"].keys():
-                        reqSents = np.intersect1d(reqSents, invertedIndex["index"][wordsInName[i]])
+                    newSents = getVals(wordsInName[i], invertedIndex["index"])
+                    if newSents:
+                        reqSents = np.intersect1d(reqSents, newSents)
                     else:
                         reqSents = []
                         break 
-            sents_1.extend(reqSents)
+                sents_1.extend(reqSents)
         sents_2 = []
         for name in entity_2:
             wordsInName = extractWords(name)
-            reqSents = []
-            if wordsInName[0] in invertedIndex["index"].keys():
-                reqSents = invertedIndex["index"][wordsInName[0]]
+            if len(wordsInName) == 0:
+                continue
+            reqSents = getVals(wordsInName[0], invertedIndex["index"])
+            if reqSents:
                 for i in range(1,len(wordsInName)):
-                    if wordsInName[i] in invertedIndex["index"].keys():
-                        reqSents = np.intersect1d(reqSents, invertedIndex["index"][wordsInName[i]])
+                    newSents = getVals(wordsInName[i], invertedIndex["index"])
+                    if newSents:
+                        reqSents = np.intersect1d(reqSents, newSents)
                     else:
                         reqSents = []
                         break 
-            sents_2.extend(reqSents)
+                sents_2.extend(reqSents)
         commonSents = np.intersect1d(sents_1, sents_2)
+        if len(commonSents) == 0:
+            continue
+        print(f"{entity_1[0]} x {entity_2[0]}")
         for sent in commonSents:
-            print(invertedIndex["sentences"][sent])
+            print(sent)
     exit(0)
 
 

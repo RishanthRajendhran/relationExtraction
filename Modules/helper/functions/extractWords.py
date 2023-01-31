@@ -21,8 +21,9 @@ def extractWords(allSentences, debugMode=False):
     for sent in allSentences:
         curWords = nltk.tokenize.word_tokenize(sent)
         for word in curWords:
-            if word not in stop and word not in string.punctuation:
-                words.append(word)
+            cw = word.replace("\n","")
+            if cw not in stop and cw not in string.punctuation:
+                words.append(cw)
     words = list(set(words))
     if debugMode:
         logging.info(f"{len(words)} words extracted from sentences!")

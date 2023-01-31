@@ -27,7 +27,7 @@ def getWikiSummaries(entities, mid2name, debugMode=False):
             continue 
         entityNames = mid2name[entity]
         for name in entityNames:
-            titles = wikipedia.search(name, 1)
+            titles = wikipedia.search(name, 5)
             if len(titles) == 0:
                 continue 
             for title in titles:

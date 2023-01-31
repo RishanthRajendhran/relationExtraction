@@ -31,14 +31,21 @@ parser.add_argument(
 
 parser.add_argument(
     "-valid",
-    help="Path to txt validation file containing relation instances",
+    help="Path to txt train file containing relation instances",
     default=dataConfig.dataSets["fb15k"]["validPath"]
 )
 
 parser.add_argument(
     "-test",
-    help="Path to txt test file containing relation instances",
+    help="Path to txt train file containing relation instances",
     default=dataConfig.dataSets["fb15k"]["testPath"]
+)
+
+parser.add_argument(
+    "-mode",
+    choices=["train", "test", "valid"],
+    help="Used to indicate the type of file being worked on (mappings would be extracted from mid2name only in train mode)",
+    required=True
 )
 
 parser.add_argument(
@@ -105,7 +112,8 @@ load = args.load
 pickRelations = args.pickRelations
 trainFile = args.train 
 validFile = args.valid 
-testFile = args.test 
+testFile = args.test
+mode = args.mode
 wiki = args.wiki
 numSamples = args.numSamples
 mid2nameFile = args.mid2name
@@ -118,9 +126,13 @@ if pickRelations and numSamples==None:
     logging.critical("Need to specify numSamples to indicate no. of relations to choose in pickRelations mode")
 
 checkFile(mapFile, ".tsv")
-checkFile(trainFile, ".txt")
-checkFile(validFile, ".txt")
-checkFile(testFile, ".txt")
+if mode == "train":
+    checkFile(trainFile, ".txt")
+elif mode == "valid":
+    checkFile(validFile, ".txt")
+elif mode == "test":
+    checkFile(testFile, ".txt")
+
 if logFile:
     logging.basicConfig(filename=logFile, filemode='w', level=logging.DEBUG)
 else:
@@ -215,11 +227,19 @@ else:
         with open(f'{relationsFile.split(".pkl")[0]}_{numSamples}.pkl', 'wb') as f:
             pickle.dump(newRelations, f)
     else:
-        mid2name = extractMappings(mapFile, debug)
-        entities, relations = extractRelationInstances(trainFile, debug)
+        if mode == "train":
+            mid2name = extractMappings(mapFile, debug)
+            fileName = trainFile
+        elif mode == "valid":
+            fileName = validFile
+        elif mode == "test":
+            fileName = testFile
+            
+        entities, relations = extractRelationInstances(fileName, debug)
 
-        with open(mid2nameFile, 'wb') as f:
-            pickle.dump(mid2name, f)
+        if mode == "train":
+            with open(mid2nameFile, 'wb') as f:
+                pickle.dump(mid2name, f)
 
         with open(entitiesFile, 'wb') as f:
             pickle.dump(entities, f)

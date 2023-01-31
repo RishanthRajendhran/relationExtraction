@@ -6,3 +6,4 @@ from Modules.helper.functions.getWikiArticles import getWikiArticles
 from Modules.helper.functions.getWikiSummaries import getWikiSummaries
 from Modules.helper.functions.extractSentences import extractSentences
 from Modules.helper.functions.extractWords import extractWords
+from Modules.helper.functions.resolveCoreferences import resolveCorefences

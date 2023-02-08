@@ -1,0 +1,9 @@
+/film/film/release_date_s./film/film_regional_release_date/film_release_region
+/people/person/profession
+/film/actor/film./film/performance/film
+/people/person/nationality
+/people/person/gender
+/common/topic/webpage./common/webpage/category
+/film/film/genre
+/sports/sports_position/players./sports/sports_team_roster/team
+/award/award_nominee/award_nominations./award/award_nomination/award

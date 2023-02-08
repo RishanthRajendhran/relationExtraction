@@ -1,4 +1,4 @@
-from Modules.helper.imports.functionImports import checkFile, extractSentences, extractWords, resolveCorefences
+from Modules.helper.imports.functionImports import checkFile, extractSentences, resolveCorefences, buildTerrierIndex
 from Modules.helper.imports.packageImports import argparse, sys, pickle, logging
 from Modules.helper.imports.configImports import dataConfig
 
@@ -25,7 +25,13 @@ parser.add_argument(
 
 parser.add_argument(
     "-invertedIndex",
-    help="Path to output file (extension: .pkl) where inverted index is to be stored",
+    help="Path to store output Terrier index folder",
+    required=True
+)
+
+parser.add_argument(
+    "-docs",
+    help="Path to store output documents file (extension='.pkl')",
     required=True
 )
 
@@ -36,7 +42,8 @@ args = parser.parse_args()
 debug = args.debug
 logFile = args.log
 wikiFile = args.wiki
-invertedIndexFile = args.invertedIndex
+terrierIndexPath = args.invertedIndex
+docsFile = args.docs
 
 checkFile(wikiFile, ".pkl")
 
@@ -53,26 +60,11 @@ allArticles = []
 for k in wikiArticles.keys():
     allArticles.append(wikiArticles[k])
 
+allArticles = list(set(allArticles))
+
 allArticles = resolveCorefences(allArticles, debug)
 allSentences = extractSentences(allArticles, debug)
-allWords = extractWords(allSentences, debug)
+docs = buildTerrierIndex(allSentences, terrierIndexPath, debug)
 
-invertedIndex = {
-    "sentences": allSentences,
-    "index": {}
-}
-
-for word in allWords:
-    if word not in invertedIndex["index"].keys():
-        invertedIndex["index"][word] = []
-
-for s in range(len(allSentences)):
-    if debug:
-        logging.info(f"Processing sentence {s}/{len(allSentences)}")
-    wordsInSentence = extractWords([allSentences[s]])
-    for word in wordsInSentence:
-        if word in allWords:
-            invertedIndex["index"][word].append(s)
-
-with open(invertedIndexFile.split(".")[0] + ".pkl", "wb") as f: 
-    pickle.dump(invertedIndex, f)
+with open(docsFile.split(".")[0] + ".pkl", "wb") as f:
+    pickle.dump(docs, f)

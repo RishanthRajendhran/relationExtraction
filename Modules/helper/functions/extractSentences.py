@@ -19,4 +19,5 @@ def extractSentences(articles, debugMode=False):
         allSents.extend(nltk.tokenize.sent_tokenize(art))
     if debugMode:
         logging.info(f"{len(allSents)} sentences extracted from wiki articles!")
+    allSents = list(set(allSents))
     return allSents

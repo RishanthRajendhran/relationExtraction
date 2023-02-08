@@ -199,6 +199,142 @@
 <br/>
 
 <h5>
+    Files
+</h5>
+<p>
+    <ul>
+        <li>
+            <h6>
+                generateData.py
+            </h6>
+            <p>
+                This file is used for the following operations:
+                <ol>
+                    <li>
+                        Extract relations, entities and mid2name mappings from txt files
+                    </li>
+                    <li>
+                        Pick relation instances for given set of relations/randomly sampled relations
+                    </li>
+                    <li>
+                        Extract random wikipedia articles
+                    </li>
+                    <li>
+                        Extract wikipedia articles/summaries for a given set of entities
+                    </li>
+                </ol>
+            </p>
+            <p>
+                <h6>
+                    Usage
+                </h6>
+                <pre>
+usage: generateData.py [-h] [-debug] [-log LOG] [-map MAP] [-train TRAIN] [-valid VALID] [-test TEST] -mode {train,test,valid}
+    [-load] [-pickRelations PICKRELATIONS] [-wiki] [-numSamples NUMSAMPLES] [-mid2name MID2NAME]
+    [-entities ENTITIES] [-relations RELATIONS] [-wikiArticles WIKIARTICLES] [-article]
+    [-maxInstsPerRel MAXINSTSPERREL] [-random]
+
+options:
+-h, --help            show this help message and exit
+-debug                Boolean flag to enable debug mode
+-log LOG              Path to file to print logging information
+-map MAP              Path to TSV file containing mappings between MIDs and wikipedia titles
+-train TRAIN          Path to txt train file containing relation instances
+-valid VALID          Path to txt train file containing relation instances
+-test TEST            Path to txt train file containing relation instances
+-mode {train,test,valid}
+                        Used to indicate the type of file being worked on (mappings would be extracted from mid2name only in train mode)
+-load                 Boolean flag to indicate that mappings and relation/entities can be loaded
+-pickRelations PICKRELATIONS
+                        Flag to enable pickRelations mode and specify no. of relations to pick/text file containing relations to pick one per line
+-wiki                 Boolean flag to enable wiki mode
+-numSamples NUMSAMPLES
+                        No. of relations sampled (Used for file naming purposes)
+-mid2name MID2NAME    Path to file containing mid2name dictionary
+-entities ENTITIES    Path to file containing entities dictionary
+-relations RELATIONS  Path to file containing relations dictionary
+-wikiArticles WIKIARTICLES
+                        Path to file containing wiki articles list
+-article              Boolean flag to be used in wiki mode to generate articles instead of summaries
+-maxInstsPerRel MAXINSTSPERREL
+                        Max. no. of instances per relation in pickRelation mode
+-random               Boolean flag to be used in wiki mode to generate random articles
+                </pre>
+            </p>
+        </li>
+        <li>
+            <h6>
+                buildInvertedIndex.py
+            </h6>
+            <p>
+                This file is used to perform the following operarions:
+                <ol>    
+                    <li>
+                        Perform coreference resolution on wiki articles/summaries
+                    </li>
+                    <li>
+                        Extract sentences from articles
+                    </li>
+                    <li>
+                        Build a terrier index over all the articles
+                    </li>
+                </ol>
+            </p>
+            <p>
+                <h6>
+                    Usage
+                </h6>
+                <pre>
+usage: generateData.py [-h] [-debug] [-log LOG] [-map MAP] [-train TRAIN] [-valid VALID] [-test TEST] -mode {train,test,valid}
+                       [-load] [-pickRelations PICKRELATIONS] [-wiki] [-numSamples NUMSAMPLES] [-mid2name MID2NAME]
+                       [-entities ENTITIES] [-relations RELATIONS] [-wikiArticles WIKIARTICLES] [-article]
+                       [-maxInstsPerRel MAXINSTSPERREL] [-random]
+
+options:
+  -h, --help            show this help message and exit
+  -debug                Boolean flag to enable debug mode
+  -log LOG              Path to file to print logging information
+  -map MAP              Path to TSV file containing mappings between MIDs and wikipedia titles
+  -train TRAIN          Path to txt train file containing relation instances
+  -valid VALID          Path to txt train file containing relation instances
+  -test TEST            Path to txt train file containing relation instances
+  -mode {train,test,valid}
+                        Used to indicate the type of file being worked on (mappings would be extracted from mid2name only in train
+                        mode)
+  -load                 Boolean flag to indicate that mappings and relation/entities can be loaded
+  -pickRelations PICKRELATIONS
+                        Flag to enable pickRelations mode and specify no. of relations to pick/text file containing relations to
+                        pick one per line
+  -wiki                 Boolean flag to enable wiki mode
+  -numSamples NUMSAMPLES
+                        No. of relations sampled (Used for file naming purposes)
+  -mid2name MID2NAME    Path to file containing mid2name dictionary
+  -entities ENTITIES    Path to file containing entities dictionary
+  -relations RELATIONS  Path to file containing relations dictionary
+  -wikiArticles WIKIARTICLES
+                        Path to file containing wiki articles list
+  -article              Boolean flag to be used in wiki mode to generate articles instead of summaries
+  -maxInstsPerRel MAXINSTSPERREL
+                        Max. no. of instances per relation in pickRelation mode
+  -random               Boolean flag to be used in wiki mode to generate random articles
+(relExtEnv) Rishanths-MacBook-Pro:Modules rishanthrajendhran$ python3 buildInvertedIndex.py -h
+usage: buildInvertedIndex.py [-h] [-debug] [-log LOG] -wiki WIKI -invertedIndex INVERTEDINDEX -docs DOCS
+
+options:
+  -h, --help            show this help message and exit
+  -debug                Boolean flag to enable debug mode
+  -log LOG              Path to file to print logging information
+  -wiki WIKI            Path to file containing wiki articles
+  -invertedIndex INVERTEDINDEX
+                        Path to store output Terrier index folder
+  -docs DOCS            Path to store output documents file (extension='.pkl')
+                </pre>
+            </p>
+        </li>
+    </ul>
+</p>
+
+<h5>
     Literature Review
 </h5>
 <p>

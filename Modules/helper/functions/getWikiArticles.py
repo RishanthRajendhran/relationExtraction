@@ -13,7 +13,7 @@ from datasets import load_dataset
 #   wikiArticles    :   Dictionary with titles as keys and article 
 #                       content as text
 #Description:
-#   This function is used to extract wikipedia articles
+#   This function is used to extract random wikipedia articles
 #Notes:
 #   None
 def getWikiArticles(numSamples=None, debugMode=False):

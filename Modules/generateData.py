@@ -56,8 +56,9 @@ parser.add_argument(
 
 parser.add_argument(
     "-pickRelations",
-    action="store_true",
-    help="Boolean flag to enable pickRelations mode"
+    type=str,
+    help="Flag to enable pickRelations mode and specify no. of relations to pick/text file containing relations to pick one per line",
+    default=None,
 )
 
 parser.add_argument(
@@ -70,6 +71,7 @@ parser.add_argument(
     "-numSamples",
     type=int,
     default=None,
+    help="No. of relations sampled (Used for file naming purposes)"
 )
 
 parser.add_argument(
@@ -102,6 +104,19 @@ parser.add_argument(
     help="Boolean flag to be used in wiki mode to generate articles instead of summaries"
 )
 
+parser.add_argument(
+    "-maxInstsPerRel",
+    type=int,
+    help="Max. no. of instances per relation in pickRelation mode",
+    default=1500
+)
+
+parser.add_argument(
+    "-random",
+    action="store_true",
+    help="Boolean flag to be used in wiki mode to generate random articles",
+)
+
 
 args = parser.parse_args()
 
@@ -121,9 +136,8 @@ entitiesFile = args.entities
 relationsFile = args.relations
 wikiArticlesFile = args.wikiArticles
 article = args.article
-
-if pickRelations and numSamples==None:
-    logging.critical("Need to specify numSamples to indicate no. of relations to choose in pickRelations mode")
+maxInstsPerRel = args.maxInstsPerRel
+random = args.random
 
 checkFile(mapFile, ".tsv")
 if mode == "train":
@@ -134,9 +148,9 @@ elif mode == "test":
     checkFile(testFile, ".txt")
 
 if logFile:
-    logging.basicConfig(filename=logFile, filemode='w', level=logging.DEBUG)
+    logging.basicConfig(filename=logFile, filemode='w', level=logging.INFO)
 else:
-    logging.basicConfig(filemode='w', level=logging.DEBUG)
+    logging.basicConfig(filemode='w', level=logging.INFO)
 
 if wiki:
     if load:
@@ -149,7 +163,7 @@ if wiki:
         for i in range(10):
             print(f"\t{wikiTitles[i]}")
     else:
-        if article:
+        if article and random: 
             wikiArticles = getWikiArticles(numSamples, debug)
         else: 
             checkFile(mid2nameFile, ".pkl")
@@ -161,8 +175,14 @@ if wiki:
             with open(entitiesFile, 'rb') as f:
                 entities = pickle.load(f)
 
-            wikiArticles = getWikiSummaries(entities, mid2name, debug)
-        with open(f'{wikiArticlesFile.split(".pkl")[0]}_{numSamples}.pkl', 'wb') as f:
+            wikiArticles = getWikiSummaries(entities, mid2name, article, debug)
+            
+        fileName = wikiArticlesFile.split(".pkl")[0]
+        if random and numSamples:
+            fileName += f'_{numSamples}.pkl'
+        else: 
+            fileName += ".pkl"
+        with open(fileName, 'wb') as f:
             pickle.dump(wikiArticles, f)
 else:
     if load:
@@ -192,6 +212,14 @@ else:
                         e1 = mid2name[e][0]
                         e2 = mid2name[f][0]
                         logging.info("{:<25} {:<100} {:<25}".format(e1, r, e2))
+        relnCounts = []
+        for reln in relations.keys():
+            relnCounts.append((len(relations[reln]), reln))
+        relnCounts.sort()
+        topK = 20
+        logging.info(f"Top {topK} relations by counts:")
+        for rel in relnCounts[-1:-(topK+1):-1]:
+            logging.info(f"\t{rel[1]} ({rel[0]})")
     elif pickRelations:
         checkFile(entitiesFile, ".pkl")
         checkFile(relationsFile, ".pkl")
@@ -201,6 +229,25 @@ else:
 
         with open(relationsFile, 'rb') as f:
             relations = pickle.load(f)
+
+        if pickRelations.isdigit():
+            numSamples = int(pickRelations)
+        else:
+            checkFile(pickRelations, ".txt")
+            with open(pickRelations, 'r') as f:
+                relns = list(f.readlines())
+                relns = [reln.replace("\n","") for reln in relns]
+            
+            curRels = {}
+            for reln in relns:
+                if reln not in relations.keys():
+                    if debug:
+                        logging.warning(f"{reln} not a recognized relation.")
+                    continue
+                chosenInstances = np.random.choice(len(relations[reln]), min(maxInstsPerRel, len(relations[reln])), replace=False)
+                curRels[reln] = (np.array(relations[reln])[chosenInstances]).tolist()
+            relations = curRels
+            numSamples = len(relations)
 
         if numSamples > len(relations):
             logging.critical("Cannot sample more relations than available!")
@@ -220,6 +267,8 @@ else:
                 if relationsKeys[i] not in newEntities[e1].keys():
                     newEntities[e1][relationsKeys[i]] = []
                 newEntities[e1][relationsKeys[i]].append(e2)
+        if debug:
+            logging.info(f"Extracted {len(newEntities)} entities for {len(newRelations)} relations.")
 
         with open(f'{entitiesFile.split(".pkl")[0]}_{numSamples}.pkl', 'wb') as f:
             pickle.dump(newEntities, f)
@@ -238,11 +287,11 @@ else:
         entities, relations = extractRelationInstances(fileName, debug)
 
         if mode == "train":
-            with open(mid2nameFile, 'wb') as f:
+            with open(mid2nameFile.split(".")[0]+".pkl", 'wb') as f:
                 pickle.dump(mid2name, f)
 
-        with open(entitiesFile, 'wb') as f:
+        with open(entitiesFile.split(".")[0]+".pkl", 'wb') as f:
             pickle.dump(entities, f)
 
-        with open(relationsFile, 'wb') as f:
+        with open(relationsFile.split(".")[0]+".pkl", 'wb') as f:
             pickle.dump(relations, f)

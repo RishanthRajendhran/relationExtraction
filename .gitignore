@@ -1,0 +1,6 @@
+Modules/data
+*.txt
+*.pkl
+Modules/invertedIndexResolved_*/
+Modules/Outputs
+*.pt

@@ -2,8 +2,6 @@ from Modules.helper.imports.functionImports import checkFile, createDataLoader, 
 from Modules.helper.imports.packageImports import argparse, pickle, logging, np, tf, hub, text, plt, train_test_split, transformers, sns, pd, torch, preprocessing
 from Modules.helper.imports.classImports import RelExtDataset, RelationClassifier
 
-tf.get_logger().setLevel("ERROR")
-
 parser = argparse.ArgumentParser()
 
 parser.add_argument(
@@ -82,7 +80,7 @@ parser.add_argument(
     "-epochs",
     type=int,
     help="No. of epochs to train for",
-    default=50
+    default=10
 )
 
 parser.add_argument(
@@ -92,9 +90,17 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-balance",
-    action="store_true",
-    help="Boolean flag to balance train dataset if not already balanced"
+    "-maxSents",
+    type=int,
+    help="Maximum no. of sentences per examples",
+    default=10
+)
+
+parser.add_argument(
+    "-numAttnHeads",
+    type=int,
+    help="No. of attention heads",
+    default=3
 )
 
 
@@ -113,17 +119,15 @@ pretrainedModel = args.pretrainedModel
 epochs = args.epochs
 loadModel = args.load
 learningRate = args.learningRate
-balance = args.balance
+maxSents = args.maxSents
+numAttnHeads = args.numAttnHeads
 
 if logFile:
     logging.basicConfig(filename=logFile, filemode='w', level=logging.INFO)
+elif debug:
+    logging.basicConfig(filemode='w', level=logging.DEBUG)
 else:
     logging.basicConfig(filemode='w', level=logging.INFO)
-
-checkFile(trainFile, ".pkl")
-if not trainValTest:
-    checkFile(validFile, ".pkl")
-    checkFile(testFile, ".pkl")
 
 with open(trainFile, "rb") as f:
     train = pickle.load(f)
@@ -135,32 +139,30 @@ if not trainValTest:
         test = pickle.load(f)
 
 df = pd.DataFrame(train)
-
-if not trainValTest:
-    df_train = df
-    df_valid = pd.DataFrame(valid)
-    df_test = pd.DataFrame(test)
-
-if maxLen == None:
-    maxLen = min(256, max([len(s) for s in df.text.to_numpy()]))
-
-classes = np.unique(df.relation.to_numpy())
-
 if histogram:
-    if not trainValTest:
-        sns.histplot([reln.split("/")[-1]for reln in df_train.relation.to_numpy()], stat="percent")
-        plt.title("Train Data")
-        plt.show()
-        sns.histplot([reln.split("/")[-1]for reln in df_valid.relation.to_numpy()], stat="percent")
-        plt.title("Validation Data")
-        plt.show()
-        sns.histplot([reln.split("/")[-1]for reln in df_test.relation.to_numpy()], stat="percent")
-        plt.title("Test Data")
-        plt.show()
-    else:
-        sns.histplot([reln.split("/")[-1]for reln in df.relation.to_numpy()], stat="percent")
-        plt.title("Data")
-        plt.show()
+    vals, counts = np.unique(df["relation"].to_numpy(),return_counts=True)  
+    vals = [v.split("/")[-1] for v in vals]
+    plt.bar(vals, counts)
+    plt.xlabel("Relation")
+    plt.ylabel("No. of instances")
+    plt.title("No. of instances in train set per relation")
+    plt.show()
+    plt.clf()
+    relNames = df["relation"].unique().tolist()
+    relSentCounts = {}
+    for rel in relNames:
+        relSentCounts[rel.split("/")[-1]] = 0
+        dfRel = df[df["relation"] == rel]
+        for _, row in dfRel.iterrows():
+            relSentCounts[rel.split("/")[-1]] += len(row["texts"])
+        relSentCounts[rel.split("/")[-1]] /= len(dfRel)
+        relSentCounts[rel.split("/")[-1]] = round(relSentCounts[rel.split("/")[-1]], 2)
+    plt.bar(relSentCounts.keys(), relSentCounts.values())
+    plt.xlabel("Relation")
+    plt.ylabel("Avg. sentences per example instance")
+    plt.title("Avg. sentences per example instance per relation")
+    plt.show()
+    plt.clf()
 
 #Bert model expects integer targets, not strings
 if not loadModel:
@@ -170,29 +172,28 @@ if not loadModel:
         pickle.dump(le, f)
 
 #Balance dataset 
-if -balance:
+vals, counts = np.unique(df.relation.to_numpy(), return_counts=True)
+if not np.allclose(counts, [(sum(counts)/len(counts))]*len(vals)):
+    logging.info("Dataframe not balanced!")
+    majorVal = np.argmax(counts)
+    dfMajor = df[df.relation == vals[majorVal]]
+    numSamples = dfMajor.shape[0]
+    for val in vals: 
+        if val == vals[majorVal]:
+            continue
+        dfTemp = df[df.relation == val]
+        dfTemp = resample(
+            dfTemp, 
+            replace=True, 
+            n_samples=numSamples,
+            random_state=26
+        )
+        dfMajor = pd.concat([dfMajor, dfTemp])
+    df = dfMajor.copy()
+    logging.info(f"Resampled dataframe to balance it")
     vals, counts = np.unique(df.relation.to_numpy(), return_counts=True)
-    if not np.allclose(counts, [(sum(counts)/len(counts))]*len(vals)):
-        logging.info("Dataframe not balanced!")
-        majorVal = np.argmax(counts)
-        dfMajor = df[df.relation == vals[majorVal]]
-        numSamples = dfMajor.shape[0]
-        for val in vals: 
-            if val == vals[majorVal]:
-                continue
-            dfTemp = df[df.relation == val]
-            dfTemp = resample(
-                dfTemp, 
-                replace=True, 
-                n_samples=numSamples,
-                random_state=26
-            )
-            dfMajor = pd.concat([dfMajor, dfTemp])
-        df = dfMajor.copy()
-        logging.info(f"Resampled dataframe to balance it")
-        vals, counts = np.unique(df.relation.to_numpy(), return_counts=True)
-        logging.info(f"vals: {vals}")
-        logging.info(f"new counts: {counts}")
+    logging.info(f"vals: {vals}")
+    logging.info(f"new counts: {counts}")
 #Balance dataset
 
 if not trainValTest:
@@ -202,12 +203,20 @@ if not trainValTest:
     if not loadModel:
         df_valid['relation'] = le.transform(df_valid['relation'])
         df_test['relation'] = le.transform(df_test['relation'])
-
-tokenizer = transformers.BertTokenizer.from_pretrained(pretrainedModel)
-
-if trainValTest:
+else:
     df_train, df_test = train_test_split(df, test_size=0.2, random_state=13)
     df_valid, df_test = train_test_split(df_test, test_size=0.6, random_state=13)
+
+if maxLen == None:
+    maxLen = min(256, max([len(s) for s in df.texts.to_numpy()]))
+
+classes = np.unique(df.relation.to_numpy())
+
+tokenizer = transformers.BertTokenizer.from_pretrained(pretrainedModel)
+# newNERtokens = ["CARDINAL", "DATE", "EVENT", "FAC", "GPE", "LANGUAGE", "LAW", "LOC", "MONEY", "NORP", "ORDINAL", "ORG", "PERCENT", "PERSON", "PRODUCT", "QUANTITY", "TIME", "WORK_OF_ART"]
+newNERtokens = ["<RELATION-S>", "<RELATION-O>"]
+newNERtokens = set(newNERtokens) - set(tokenizer.vocab.keys())
+tokenizer.add_tokens(list(newNERtokens))
 
 if loadModel:
     model = torch.load(loadModel)
@@ -218,17 +227,17 @@ if loadModel:
     else: 
         df["relation"] = model.textToLabel(df["relation"])
 else:
-    model = RelationClassifier(len(classes), pretrainedModel, le)
-
+    model = RelationClassifier(len(classes), pretrainedModel, numAttnHeads, le)
 if torch.cuda.is_available():
   device = torch.device("cuda")
 else:
   device = torch.device("cpu")
 model = model.to(device)
+model.resizeTokenEmbeddings(len(tokenizer))
 
-trainDataLoader = createDataLoader(df_train, tokenizer, maxLen, batchSize, debug)
-validDataLoader = createDataLoader(df_valid, tokenizer, maxLen, batchSize, debug)
-testDataLoader = createDataLoader(df_test, tokenizer, maxLen, batchSize, debug)
+trainDataLoader = createDataLoader(df_train, tokenizer, maxLen, maxSents, batchSize, debug)
+validDataLoader = createDataLoader(df_valid, tokenizer, maxLen, maxSents, batchSize, debug)
+testDataLoader = createDataLoader(df_test, tokenizer, maxLen, maxSents, batchSize, debug)
 
 optimizer = transformers.AdamW(
     model.parameters(), 
@@ -236,7 +245,8 @@ optimizer = transformers.AdamW(
     correct_bias=False, 
     weight_decay=0.01
 )
-totalSteps = len(trainDataLoader)*epochs
+# totalSteps = len(trainDataLoader)*epochs
+totalSteps = epochs
 scheduler = transformers.get_linear_schedule_with_warmup(
     optimizer,
     num_warmup_steps=0,
@@ -264,8 +274,7 @@ for epoch in range(epochs):
         optimizer, 
         device, 
         scheduler,
-        len(df_train),
-        debug
+        len(df_train)
     )
 
     logging.info(f"\tTrain Accuracy: {trainAcc}, Train loss: {trainLoss}")
@@ -275,19 +284,17 @@ for epoch in range(epochs):
         validDataLoader,
         lossFunction,
         device, 
-        len(df_valid),
-        debug
+        len(df_valid)
     )
 
-    logging.info(f"\Validation Accuracy: {validAcc}, Validation loss: {validLoss}")
+    logging.info(f"\tValidation Accuracy: {validAcc}, Validation loss: {validLoss}")
 
     testAcc, testLoss = evaluateModel(
         model,
         testDataLoader,
         lossFunction,
         device, 
-        len(df_test),
-        debug
+        len(df_test)
     )
 
     logging.info(f"\tTest Accuracy: {testAcc}, Tess loss: {testLoss}")
@@ -302,7 +309,8 @@ for epoch in range(epochs):
     history["testLoss"].append(validLoss)
 
     if validAcc > bestAcc: 
-        torch.save(model.state_dict(), "model.pt")
+        torch.save(model, "fullModel.pt")
+        torch.save(model.state_dict(), "modelStateDict.pt")
         bestAcc = validAcc
 
 with open("history.pkl","wb") as f:

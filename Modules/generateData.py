@@ -62,6 +62,12 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "-topK",
+    action="store_true",
+    help="Boolean flag to enable picking the top K relations based on counts in pickRelations mode",
+)
+
+parser.add_argument(
     "-wiki",
     action="store_true",
     help="Boolean flag to enable wiki mode"
@@ -108,7 +114,7 @@ parser.add_argument(
     "-maxInstsPerRel",
     type=int,
     help="Max. no. of instances per relation in pickRelation mode",
-    default=1500
+    default=np.inf
 )
 
 parser.add_argument(
@@ -138,6 +144,7 @@ wikiArticlesFile = args.wikiArticles
 article = args.article
 maxInstsPerRel = args.maxInstsPerRel
 random = args.random
+topK = args.topK
 
 checkFile(mapFile, ".tsv")
 if mode == "train":
@@ -175,7 +182,16 @@ if wiki:
             with open(entitiesFile, 'rb') as f:
                 entities = pickle.load(f)
 
-            wikiArticles = getWikiSummaries(entities, mid2name, article, debug)
+            entsList = []
+            for e in entities.keys():
+                if e not in entsList:
+                    entsList.append(e)
+                for r in entities[e].keys():
+                    for f in entities[e][r]:
+                        if f not in entsList:
+                            entsList.append(f)
+
+            wikiArticles = getWikiSummaries(entsList, mid2name, article, debug)
             
         fileName = wikiArticlesFile.split(".pkl")[0]
         if random and numSamples:
@@ -252,11 +268,18 @@ else:
         if numSamples > len(relations):
             logging.critical("Cannot sample more relations than available!")
 
-        chosenRelations = np.random.choice(len(relations), numSamples, replace=False)
+        relationsKeys = list(relations.keys())
+        if topK:
+            relLens = []
+            for rel in relationsKeys:
+                relLens.append((len(relations[rel]), relationsKeys.index(rel)))
+            relLens.sort(reverse=True)
+            chosenRelations = [rl[1] for rl in relLens[:numSamples]]
+        else:
+            chosenRelations = np.random.choice(len(relations), numSamples, replace=False)
 
         newRelations = {}
         newEntities = {}
-        relationsKeys = list(relations.keys())
         for i in chosenRelations:
             if relationsKeys[i] not in newRelations.keys():
                 newRelations[relationsKeys[i]] = []

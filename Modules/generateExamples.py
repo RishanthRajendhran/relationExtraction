@@ -156,12 +156,18 @@ if negative:
     allEntities = allEntities.tolist()
 
     examples = []
+    numNegExamples = 0
     for i in range(len(allEntities)):
-        for j in range(len(allEntities)):
-            if i == j:
-                continue
+        #Shuffle to improve diversity
+        innerEntities = allEntities.copy()
+        innerEntities = np.array(innerEntities)
+        np.random.shuffle(innerEntities)
+        innerEntities = innerEntities.tolist()
+        for j in range(np.random.choice(np.arange(len(innerEntities)))):
             e1 = allEntities[i]
-            e2 = allEntities[j]
+            e2 = innerEntities[j]
+            if e1 == e2:
+                continue
             if e1 not in mid2name.keys():
                 if debug:
                     logging.info(f"No mapping found for {e1}!")
@@ -184,6 +190,7 @@ if negative:
                 commonSentNos = np.intersect1d(sents_1, sents_2).tolist()
                 if len(commonSentNos) == 0:
                     continue
+                numNegExamples += 1
                 commonSents = []
                 for sNo in commonSentNos:
                     if int(sNo) >= len(docs):
@@ -212,12 +219,12 @@ if negative:
                         "doc": curSent
                     })
                 if debug:
-                    logging.info(f"\t{entity_1[0]} x {entity_2[0]}")
+                    logging.info(f"\t{numNegExamples}/{numExamples}: {entity_1[0]} x {entity_2[0]}")
                     for sent in commonSentNos:
                         logging.info(f"\t\t{sent}")
-                if len(examples) > numExamples:
+                if numNegExamples > numExamples:
                     break
-        if len(examples) > numExamples:
+        if numNegExamples > numExamples:
             break 
 else:
     examples = []

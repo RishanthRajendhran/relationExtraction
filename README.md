@@ -22,7 +22,7 @@
             </a>
         </li>
         <li>
-            Wikipedia articles (Wikipedia Python Module / Hunngingface Wikipedia dump)
+            Wikipedia articles (Wikipedia Python Module / Huggingface Wikipedia dump)
         </li>
     </ul>
 </p>
@@ -255,6 +255,32 @@
         </li>
     </ul>
 </p>
+<h6>
+    Phase 3
+<h6>
+<p>
+    The major external tools/packages/modules used in this project:
+    <ul>
+        <li>
+            PyTerrier (for inverted index)
+        </li>
+        <li>
+            neuralcoref (for coreference resolution) (A neural network model using reinforcement learning based rewards based on <a href="https://aclanthology.org/D16-1245.pdf"> Deep Reinforcement Learning for Mention-Ranking Coreference Models by Clark et al.</a>)
+        </li>
+        <li>
+            SpaCy (for named-entity recognition)
+        </li>
+        <li>
+            nltk (for word tokenization, sentence tokenization and part-of-speech tagging)
+        </li>
+        <li>
+            Deep Graph Library (dgl) (for building Tree LSTM)
+        </li>
+        <li>
+            PyTorch (for linear layers, optimizers and loss functions)
+        </li>
+    </ul>
+</p>
 <h5>
     Pipeline
 </h5>
@@ -336,6 +362,47 @@
         Build a model using the examples
     </li>
 </p>
+<h6>
+    Phase 3
+</h6>
+<p>
+    <li>
+        Extract entities, relations and relation instances
+    </li>
+    <li>
+        Extract wikipedia articles for entities using information in mid2name mapping
+    </li>
+    <li>
+        Apply coreference resolution over the extracted wikipedia articles selectively
+    </li>
+    <li>
+        Extract out sentences from coreference resolved wikipedia articles
+    </li>
+    <li>
+        Build a inverted index treating sentences as documents
+    </li>
+    <li>
+        Generate positive examples by searching the inverted index for sentences containing both entities involved in a relation
+    </li>
+    <li>
+        Generate negative examples from entity pairs not involved in a relation using a similar approach as in (6)
+    </li>
+    <li>
+        Sample examples from the generated set of examples extracting out names for entities from sentences with a “high” reliability threshold; filter out sentences where both entities have “similar” names
+    </li>
+    <li>
+        Limit the number of examples per relation to ensure resulting set of examples is not too skewed
+    </li>
+    <li>
+        Generate dependency parse for sentences and construct top-down hierarchies for use by the Tree LSTM.
+    </li>
+    <li>
+        Also collect information such as word vector representations, lemmas, part-of-speech tags, capitalization features and named entity types which would be used later to construct feature vectors.
+    </li>
+    <li>    
+        Build a model using the examples.
+    </li>
+</p>
 <h5>
     Design Choices
 </h5>
@@ -367,6 +434,26 @@
     <br/>
     Resampling was employed during training phase to counter data imbalance. 
 </p>
+<h6>
+    Phase 3
+</h6>
+<p>
+    For the second phase, top 17 relations were extracted based on the number of relation instances in the train set. Four relations were manually chosen with a goal of having a diverse set of relations and entities involved in the relation. 
+    <br/>
+    Wikipedia articles were taken from the Huggingface English Wikipedia dump instead of the wikipedia Python API as the articles in the Huggingface dump are cleaned and free of formatting.
+    <br/>
+    To counter the problem of the aggressive coreference resolution performed by the neuralcoref model observed in phase 1, coreference resolution was performed selectively: anaphors in the sentence containing the antecedent were not replaced, exactly one anaphor referring to the same antecedent in a given sentence was replaced with the antecedent. Dropping coreference resolution was also considered but it was ultimately decided to use it to avoid not having enough example sentences for the relation instances. 
+    <br/>
+    To tackle the problem of noisy example sentences, a higher reliability threshold was used in this phase (F1 score > 0.8). Additionally, sentences where the names of both the entities were too similar were discarded. 
+    <br/>
+    In the second phase, entity pair under consideration was marked in the sentence with the tags: <RELATION-S>, <RELATION-O>, depending on whether they appeared on the left side or the right side of the relation. An attempt was made to use the Spacy NER tagger (en_core_web_lg) to tag the named entities in the example sentences but the attempt was dropped due to lack of adequate compute resources.
+    <br/>
+    In the third phase, the data generated in the second phase was used as is after cleaning the sentences of entity markers as they were not used in the third phase. The sentences were then fed to SpaCy to obtain dependency parse structures, part-of-speech tags, lemma of words in sentences and named entities in sentences.
+    <br/>
+    Unlike in phase 1 where every sentence containing both the entities under consideration was considered as an individual example for the relation that exists between those entities, in the second and third phases all sentences containing both the entities under consideration were consolidated as one example expressing the relation that exists between those entities. The hope was that even if some non-informative sentences had crept in due to the distant supervision approach, the model would learn to selectively look at the most useful sentences.
+    <br/>
+    Resampling was employed during training phase to counter data imbalance. 
+</p>
 <h5>
     Model
 </h5>
@@ -384,6 +471,13 @@
 <p>
     Given an entity pair involved in a relation, all sentences containing both the entities are fed to the BERT model to obtain contextualized word embeddings. The word embeddings for the start tag of the entities of interest (<RELATION-S> and <RELATION-O>) were extracted and concatenated. The concatenated span representation for all the sentences were fed to the attention layer which weights the sentences based on how useful they are for the classification task. The weighted-averaged sentence representation is then fed to a BiLSTM layer, the output of which is fed to a linear classification layer. 
 </p>
+<h6>
+    Phase 3
+</h6>
+<img src="./images/phase3_model.png" alt="Model used in Phase 3"/>
+<p>
+    Given an entity pair involved in a relation, a batched tree containing trees built based on the dependency parse structures of all sentences containing both the entities is fed to the TreeLSTM to obtain the hidden state representation of the root nodes. The sum of the hidden state representations of all root nodes is concatenated with the concatenated feature vectors of all sentences to obtain a concatenated representation. The concatenated representation is then fed to the logistic regression classifier to obtain the output logits.
+</p>
 <h5>
     Compute Time
 </h5>
@@ -400,6 +494,14 @@
 </h6>
 <p>
     Training: ~3.5 hours for 20 epochs (on a GPU)
+    <br/>
+    Evaluation: ~0.5 hours (on a GPU)
+</p>
+<h6>
+    Phase 3
+</h6>
+<p>
+    Training: ~3.5 hours for 3 epochs (on a GPU) (and countless hours for hyper parameter tuning)
     <br/>
     Evaluation: ~0.5 hours (on a GPU)
 </p>
@@ -457,6 +559,31 @@
     Giving dependency path information explicitly could also help the model in this case:
     <br/>
     <img src="./images/phase2_dependencyPath.png" alt="Dependency Parse by Stanford CoreNLP for the above example"/>
+</p>
+<h6>
+    Phase 3
+</h6>
+<p>
+    While this project started out driven by the motive to generate annotated data automatically, more focus was on the relation extraction models, especially in the later phases. It is quite clear that the distant supervision approach is far from perfect: some example sentences do not talk about the entities under consideration, some don’t encode the intended relation and some entities are wrongly labelled as not being related. 
+    <br/>
+    Only extracting sentences having a 100% match with the entities under consideration can be one way. to alleviate some of these problems although there could still be cases where the sentence doesn’t quite encode intended relation.
+    <br/>
+    Extracting sentences from within a “confident” context is yet another area to explore: given two entities, extract sentences containing both the entities only from Wikipedia articles having these entities mentioned in their title. It is important to keep in mind that such a restriction could drastically reduce the number of example sentences.
+    <br/>
+    Another approach to ensure that the entities under consideration are spoken of in a significant way in the extracted sentence is to check if the entities appear as the head noun and not a part of a larger phrase. Again, this is not prone to mistakes but it could worth trying.
+    <br/>
+    While the Phase 2 model was able to differentiate between the subject and object positions, the Phase 3 model struggles with it. This could be because of lack of enough distinction in the feature vector representation. Putting all features related to the subject entity before the features related to the object entity can be a useful thing to do.
+    <br/>
+    One major caveat with this project which came to light quite late is that some sentences in the validation and test sets are also in the train sets, albeit for different entity pairs/relations. This can be avoided by simply filtering sentences in train set from the validation and test sets. However, this could lead to a drastic reduction in the number of extracted sentences.
+</p>
+<h5>
+    Results: An Overview
+</h5>
+<h6>
+    Performance on Test set
+</h6>
+<p>
+    <img src="./images/resultsComparison.png" alt="Results: An overview"/>
 </p>
 <h5>
     Files
@@ -660,6 +787,39 @@ options:
         </li>
         <li>
             <h6>
+                preprocessSampledExamples.py
+            </h6>
+            <p>
+                This file is used to perform the following operarions:
+                <ol>    
+                    <li>
+                        Run sentences in sampled examples through SpaCy and generate information such as dependency parse, part-of-speech-tags, lemma, word vector representations etc to be used by RelExtDataset while building the model
+                    </li>
+                </ol>
+            </p>
+            <p>
+                <h6>
+                    Usage
+                </h6>
+                <pre>
+usage: preprocessSampledExamples.py [-h] [-debug] [-log LOG] -examples EXAMPLES -out OUT [-append] [-start START] [-end END] [-windowSize WINDOWSIZE]
+
+options:
+  -h, --help            show this help message and exit
+  -debug                Boolean flag to enable debug mode
+  -log LOG              Path to file to print logging information
+  -examples EXAMPLES    Path to file containing examples
+  -out OUT              Path to preprocessed sampled examples (extension=.pkl)
+  -append               Boolean flag to append to old output
+  -start START          Starting index from which examples need to be preprocessed
+  -end END              Ending index until which examples need to be preprocessed
+  -windowSize WINDOWSIZE
+                        Size of context window to consider
+                </pre>
+            </p>
+        </li>
+        <li>
+            <h6>
                 buildModel.py
             </h6>
             <p>
@@ -681,30 +841,37 @@ options:
                     Usage
                 </h6>
                 <pre>
-usage: buildModel.py [-h] [-debug] [-log LOG] [-train TRAIN] [-valid VALID] [-test TEST] [-trainValTest] [-histogram] [-maxLen MAXLEN] -batchSize BATCHSIZE
-                     -learningRate LEARNINGRATE [-pretrainedModel {bert-base-uncased,bert-base-cased}] [-epochs EPOCHS] [-load LOAD] [-maxSents MAXSENTS]
-                     [-numAttnHeads NUMATTNHEADS]
+usage: buildModel.py [-h] [-debug] [-log LOG] [-train TRAIN] [-valid VALID] [-test TEST] [-trainValTest] [-histogram] [-batchSize BATCHSIZE] [-learningRate LEARNINGRATE]
+                     [-epochs EPOCHS] [-load LOAD] [-maxSents MAXSENTS] [-embeddingSize EMBEDDINGSIZE] [-entTypeToInd ENTTYPETOIND] [-posToInd POSTOIND] [-lemmaToInd LEMMATOIND]
+                     [-windowSize WINDOWSIZE] [-hiddenSize HIDDENSIZE] [-dropout DROPOUT]
 
 options:
   -h, --help            show this help message and exit
   -debug                Boolean flag to enable debug mode
   -log LOG              Path to file to print logging information
-  -train TRAIN          Path to file containing training examples (extension=.pkl)
-  -valid VALID          Path to file containing validation examples (extension=.pkl)
-  -test TEST            Path to file containing test examples (extension=.pkl)
+  -train TRAIN          Path to file containing sampled training examples (extension=.pkl)
+  -valid VALID          Path to file containing sampled validation examples (extension=.pkl)
+  -test TEST            Path to file containing sampled test examples (extension=.pkl)
   -trainValTest         Boolean flag to split train set into train, validation and test set
   -histogram            Boolean flag to show histogram of examples
-  -maxLen MAXLEN        Maximum length of input tokens (tokenizer)
   -batchSize BATCHSIZE  Batch size for dataloader
   -learningRate LEARNINGRATE
                         Learning rate for training
-  -pretrainedModel {bert-base-uncased,bert-base-cased}
-                        Pretrained BERT model to use
   -epochs EPOCHS        No. of epochs to train for
   -load LOAD            Path to file containing model to load
   -maxSents MAXSENTS    Maximum no. of sentences per examples
-  -numAttnHeads NUMATTNHEADS
-                        No. of attention heads
+  -embeddingSize EMBEDDINGSIZE
+                        Size of embeddings in sentence vectors (from Spacy)
+  -entTypeToInd ENTTYPETOIND
+                        Path to .pkl file containg mapping between NER types and integers
+  -posToInd POSTOIND    Path to .pkl file containg mapping between POS tags and integers
+  -lemmaToInd LEMMATOIND
+                        Path to .pkl file containg mapping between lemma and integers
+  -windowSize WINDOWSIZE
+                        Size of context window to consider
+  -hiddenSize HIDDENSIZE
+                        Size of hidden representation in TreeLSTM
+  -dropout DROPOUT      Dropout to be applied in TreeLSTM
                 </pre>
             </p>
         </li>
@@ -731,9 +898,9 @@ options:
                     Usage
                 </h6>
                 <pre>
-usage: testModel.py [-h] [-debug] [-log LOG] [-model MODEL] [-test TEST] [-maxLen MAXLEN] [-batchSize BATCHSIZE]
-                    [-pretrainedModel {bert-base-uncased,bert-base-cased}] [-live] [-examples EXAMPLES [EXAMPLES ...]] [-confusion] [-maxSents MAXSENTS]
-                    [-histogram] [-entities ENTITIES [ENTITIES ...]] [-savePredictions] [-printPredictions] [-baseline {majority,random}]
+usage: testModel.py [-h] [-debug] [-log LOG] [-model MODEL] [-test TEST] [-batchSize BATCHSIZE] [-live] [-examples EXAMPLES [EXAMPLES ...]] [-confusion] [-maxSents MAXSENTS]
+                    [-histogram] [-entities ENTITIES [ENTITIES ...]] [-savePredictions] [-printCorPredictions] [-printMisPredictions] [-baseline {majority,random}]
+                    [-embeddingSize EMBEDDINGSIZE] [-entTypeToInd ENTTYPETOIND] [-posToInd POSTOIND] [-lemmaToInd LEMMATOIND] [-load LOAD]
 
 options:
   -h, --help            show this help message and exit
@@ -741,10 +908,7 @@ options:
   -log LOG              Path to file to print logging information
   -model MODEL          Path to file containing RelClassifier model (extension= .pt)
   -test TEST            Path to file containing test examples (extension=.pkl)
-  -maxLen MAXLEN        Maximum length of input tokens (tokenizer)
   -batchSize BATCHSIZE  Batch size for dataloader
-  -pretrainedModel {bert-base-uncased,bert-base-cased}
-                        Pretrained BERT model to use
   -live                 Boolean flag to enable live demo mode
   -examples EXAMPLES [EXAMPLES ...]
                         Example sentences to test the model on in live demo mode
@@ -754,9 +918,18 @@ options:
   -entities ENTITIES [ENTITIES ...]
                         List of entities to consider in examples passed in live demo mode with entityPairs flag enabled
   -savePredictions      Boolean flag to save predictions
-  -printPredictions     Boolean flag to print predictions
+  -printCorPredictions  Boolean flag to print correct predictions
+  -printMisPredictions  Boolean flag to print wrong predictions
   -baseline {majority,random}
                         Test Baseline models
+  -embeddingSize EMBEDDINGSIZE
+                        Size of embeddings in sentence vectors (from Spacy)
+  -entTypeToInd ENTTYPETOIND
+                        Path to .pkl file containg mapping between NER types and integers
+  -posToInd POSTOIND    Path to .pkl file containg mapping between POS tags and integers
+  -lemmaToInd LEMMATOIND
+                        Path to .pkl file containg mapping between lemma and integers
+  -load LOAD            Path to file containing model to load
                 </pre>
             </p>
         </li>

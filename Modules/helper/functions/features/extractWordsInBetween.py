@@ -7,8 +7,6 @@ import nltk
 #   words           :   Sequence of words (List)  
 #   word1Pos        :   First word (ending) index
 #   word2Pos        :   Second word (starting) index
-#   debugMode       :   Boolean variable to enable debug mode
-#                   Default: False
 #Output:
 #   wordsInBetween    :   List of words (in-order) in between word1 and word2 in the sequence words 
 #Description:
@@ -27,7 +25,6 @@ def extractWordsInBetween(words, word1Pos, word2Pos, debugMode=False):
     stop = set(nltk.corpus.stopwords.words("english"))
     if word1Pos > word2Pos:
         word1Pos, word2Pos = word2Pos, word1Pos
-    wordsInBetween = [w for w in range((word1Pos+1), word2Pos) if w not in stop]
-    if debugMode:
-        logging.info(f"{len(wordsInBetween)} words found in between.")
+    wordsInBetween = [w for w in range((word1Pos+1), word2Pos) if words[w] not in stop]
+    logging.debug(f"{len(wordsInBetween)} words found in between.")
     return wordsInBetween

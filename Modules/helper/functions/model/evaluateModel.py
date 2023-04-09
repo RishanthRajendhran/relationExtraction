@@ -7,11 +7,10 @@ import numpy as np
 #   model           :   RelClassifier model object
 #   dataLoader      :   Torch data loader
 #   lossFunction    :   Torch loss function
-#   device          :   Device to train on 
-#                       Choices: ["cpu", "cuda"]
+#   device          :   Device to train on (Eg. "cpu", "cuda:0")
 #   numExamples     :   Total no. of examples used for 
 #                       training
-#   debugMode       :   Boolean variable to enable debug mode
+#   debugMode       :   [Deprecated] Boolean variable to enable debug mode
 #                       Default: False
 #Output:
 #   _               :   Train accuracy
@@ -20,7 +19,7 @@ import numpy as np
 #   This function is used to evaluate a RelClassifier model
 #Notes:
 #   None
-def evaluateModel(model, dataLoader, lossFunction, device, numExamples):
+def evaluateModel(model, dataLoader, lossFunction, device, numExamples, debugMode=False):
     model = model.eval()
 
     losses = []
@@ -28,15 +27,26 @@ def evaluateModel(model, dataLoader, lossFunction, device, numExamples):
 
     with torch.no_grad():
         for d in dataLoader:
-            input_ids = d["input_ids"].to(device)
-            attention_mask = d["attention_mask"].to(device)
-            entity_pair_inds = d["entity_pair_inds"].to(device)
-            targets = d["targets"].to(device)
+            # texts = []
+            bTrees = []
+            rootNodes = []
+            targets = []
+            featureVectors = []
+            for i in range(len(d)):
+                # texts.append(d[i]["texts"])
+                bTrees.append(d[i]["bTree"])
+                rootNodes.append(d[i]["rootNodes"])
+                targets.append(d[i]["targets"])
+                featureVectors.append(d[i]["featureVectors"])
+            # texts = torch.tensor(texts).to(device)
+            rootNodes = torch.tensor(rootNodes).to(device)
+            targets = torch.tensor(targets).to(device)
+            featureVectors = torch.tensor(featureVectors).to(device)
 
             outputs = model(
-                input_ids=input_ids,
-                attention_mask=attention_mask,
-                entity_pair_inds=entity_pair_inds
+                bTrees=bTrees,
+                rootNodes=rootNodes,
+                featureVectors=featureVectors,
             )
 
             _, preds = torch.max(outputs, dim=1)

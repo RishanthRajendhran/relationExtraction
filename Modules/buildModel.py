@@ -1,5 +1,5 @@
 from Modules.helper.imports.functionImports import checkFile, createDataLoader, trainModel, evaluateModel
-from Modules.helper.imports.packageImports import argparse, pickle, logging, np, tf, hub, text, plt, train_test_split, transformers, sns, pd, torch, preprocessing
+from Modules.helper.imports.packageImports import argparse, pickle, logging, np, tf, hub, text, plt, train_test_split, transformers, sns, pd, torch, preprocessing, nltk, resample
 from Modules.helper.imports.classImports import RelExtDataset, RelationClassifier
 
 parser = argparse.ArgumentParser()
@@ -19,20 +19,20 @@ parser.add_argument(
 
 parser.add_argument(
     "-train",
-    help="Path to file containing training examples (extension=.pkl)",
-    default="all_examples_2.pkl"
+    help="Path to file containing sampled training examples (extension=.pkl)",
+    default="preprocessedExamples_17.pkl"
 )
 
 parser.add_argument(
     "-valid",
-    help="Path to file containing validation examples (extension=.pkl)",
-    default="all_examples_valid_2.pkl"
+    help="Path to file containing sampled validation examples (extension=.pkl)",
+    default="preprocessedExamples_valid_17.pkl"
 )
 
 parser.add_argument(
     "-test",
-    help="Path to file containing test  examples (extension=.pkl)",
-    default="all_examples_test_2.pkl"
+    help="Path to file containing sampled test examples (extension=.pkl)",
+    default="preprocessedExamples_test_17.pkl"
 )
 
 parser.add_argument(
@@ -49,31 +49,17 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "-maxLen",
-    type=int,
-    help="Maximum length of input tokens (tokenizer)",
-    default= None
-)
-
-parser.add_argument(
     "-batchSize",
     type=int,
     help="Batch size for dataloader",
-    required=True
+    default=64
 )
 
 parser.add_argument(
     "-learningRate",
     type=float,
     help="Learning rate for training",
-    required=True
-)
-
-parser.add_argument(
-    "-pretrainedModel",
-    choices=["bert-base-uncased", "bert-base-cased"],
-    help="Pretrained BERT model to use",
-    default="bert-base-cased"
+    default=0.0001
 )
 
 parser.add_argument(
@@ -93,14 +79,53 @@ parser.add_argument(
     "-maxSents",
     type=int,
     help="Maximum no. of sentences per examples",
-    default=10
+    default=5
 )
 
 parser.add_argument(
-    "-numAttnHeads",
+    "-embeddingSize",
     type=int,
-    help="No. of attention heads",
+    help="Size of embeddings in sentence vectors (from Spacy)",
+    default=300
+)
+
+parser.add_argument(
+    "-entTypeToInd",
+    help="Path to .pkl file containg mapping between NER types and integers",
+    default="entTypeToInd.pkl"
+)
+
+parser.add_argument(
+    "-posToInd",
+    help="Path to .pkl file containg mapping between POS tags and integers",
+    default="posToInd.pkl"
+)
+
+parser.add_argument(
+    "-lemmaToInd",
+    help="Path to .pkl file containg mapping between lemma and integers",
+    default="lemmaToInd.pkl"
+)
+
+parser.add_argument(
+    "-windowSize",
+    type=int,
+    help="Size of context window to consider",
     default=3
+)
+
+parser.add_argument(
+    "-hiddenSize",
+    type=int,
+    help="Size of hidden representation in TreeLSTM",
+    default=1024
+)
+
+parser.add_argument(
+    "-dropout",
+    type=float,
+    help="Dropout to be applied in TreeLSTM",
+    default=0.3
 )
 
 
@@ -113,14 +138,39 @@ validFile = args.valid
 testFile = args.test
 trainValTest = args.trainValTest
 histogram = args.histogram
-maxLen = args.maxLen
 batchSize = args.batchSize
-pretrainedModel = args.pretrainedModel
 epochs = args.epochs
 loadModel = args.load
 learningRate = args.learningRate
 maxSents = args.maxSents
-numAttnHeads = args.numAttnHeads
+embeddingSize = args.embeddingSize
+entTypeToIndFile = args.entTypeToInd
+posToIndFile = args.posToInd
+lemmaToIndFile = args.lemmaToInd
+windowSize = args.windowSize
+hiddenSize = args.hiddenSize
+dropout = args.dropout
+
+if logFile:
+    checkFile(logFile, ".txt")
+checkFile(trainFile, ".pkl")
+checkFile(validFile, ".pkl")
+checkFile(testFile, ".pkl")
+checkFile(entTypeToIndFile, ".pkl")
+checkFile(posToIndFile, ".pkl")
+checkFile(lemmaToIndFile, ".pkl")
+
+if loadModel:
+    checkFile(loadModel, ".pt")
+
+with open(entTypeToIndFile, "rb") as f:
+    entTypeToInd = pickle.load(f)
+
+with open(posToIndFile, "rb") as f:
+    posToInd = pickle.load(f)
+
+with open(lemmaToIndFile, "rb") as f:
+    lemmaToInd = pickle.load(f)
 
 if logFile:
     logging.basicConfig(filename=logFile, filemode='w', level=logging.INFO)
@@ -207,16 +257,7 @@ else:
     df_train, df_test = train_test_split(df, test_size=0.2, random_state=13)
     df_valid, df_test = train_test_split(df_test, test_size=0.6, random_state=13)
 
-if maxLen == None:
-    maxLen = min(256, max([len(s) for s in df.texts.to_numpy()]))
-
 classes = np.unique(df.relation.to_numpy())
-
-tokenizer = transformers.BertTokenizer.from_pretrained(pretrainedModel)
-# newNERtokens = ["CARDINAL", "DATE", "EVENT", "FAC", "GPE", "LANGUAGE", "LAW", "LOC", "MONEY", "NORP", "ORDINAL", "ORG", "PERCENT", "PERSON", "PRODUCT", "QUANTITY", "TIME", "WORK_OF_ART"]
-newNERtokens = ["<RELATION-S>", "<RELATION-O>"]
-newNERtokens = set(newNERtokens) - set(tokenizer.vocab.keys())
-tokenizer.add_tokens(list(newNERtokens))
 
 if loadModel:
     model = torch.load(loadModel)
@@ -227,25 +268,23 @@ if loadModel:
     else: 
         df["relation"] = model.textToLabel(df["relation"])
 else:
-    model = RelationClassifier(len(classes), pretrainedModel, numAttnHeads, le)
+    model = RelationClassifier(len(classes), maxSents, embeddingSize, hiddenSize, windowSize, dropout, le)
+
 if torch.cuda.is_available():
   device = torch.device("cuda")
 else:
   device = torch.device("cpu")
 model = model.to(device)
-model.resizeTokenEmbeddings(len(tokenizer))
+ 
+trainDataLoader = createDataLoader(df_train, embeddingSize, entTypeToInd, posToInd, lemmaToInd, maxSents, hiddenSize, windowSize, batchSize, device)
+validDataLoader = createDataLoader(df_valid, embeddingSize, entTypeToInd, posToInd, lemmaToInd, maxSents, hiddenSize, windowSize, batchSize, device)
+testDataLoader = createDataLoader(df_test, embeddingSize, entTypeToInd, posToInd, lemmaToInd, maxSents, hiddenSize, windowSize, batchSize, device)
 
-trainDataLoader = createDataLoader(df_train, tokenizer, maxLen, maxSents, batchSize, debug)
-validDataLoader = createDataLoader(df_valid, tokenizer, maxLen, maxSents, batchSize, debug)
-testDataLoader = createDataLoader(df_test, tokenizer, maxLen, maxSents, batchSize, debug)
-
-optimizer = transformers.AdamW(
+optimizer = torch.optim.Adam(
     model.parameters(), 
     lr=learningRate, 
-    correct_bias=False, 
-    weight_decay=0.01
 )
-# totalSteps = len(trainDataLoader)*epochs
+
 totalSteps = epochs
 scheduler = transformers.get_linear_schedule_with_warmup(
     optimizer,

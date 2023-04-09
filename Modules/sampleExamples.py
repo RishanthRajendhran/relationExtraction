@@ -183,7 +183,6 @@ for rel in relExs.keys():
         newEx = {}
         newEx["relation"] = rel
         newEx["entities"] = relEntPairs[cep]
-        newEx["entities"] = cep
         newEx["texts"] = texts
         newExamples.append(newEx)
     logging.info(f"Sampled {len(chosenEntPairs)} instances for relation {rel}")

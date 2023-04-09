@@ -6,7 +6,7 @@ import nltk
 #Input:
 #   words               :   Sequence of words (List)  
 #   focusWord           :   Word under focus
-#   debugMode           :   Boolean variable to enable debug mode
+#   debugMode           :   [Deprecated] Boolean variable to enable debug mode
 #                           Default: False
 #Output:
 #   wordStart           :   Starting index of word in words 
@@ -36,5 +36,5 @@ def findWordInWords(words, focusWord, debugMode=False):
     if sInd == None:
         logging.error(f"Could not find {focusWord} in the list of words!")
         return -1, -1 
-    return sInd, sInd+len(wordsInWord)-1 
+    return sInd, sInd+len(wordsInWord)-1
  

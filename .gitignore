@@ -4,3 +4,5 @@ Modules/data
 Modules/invertedIndexResolved_*/
 Modules/Outputs
 *.pt
+Modules/glove.6B.zip
+Modules/stanford-corenlp-4.5.3/stanford-corenlp-4.5.3-models.jar

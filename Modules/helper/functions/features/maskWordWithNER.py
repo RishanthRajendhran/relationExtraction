@@ -26,12 +26,13 @@ def maskWordWithNER(sentence, word, NERdefault, subjObjLabel, debugMode=False):
     if word not in sentence:
         logging.error(f"{word} not present in {sentence}!")
         return None
-    ner = extractNERtags(sentence, debugMode)
+    #Disabling  Spacy NER temporarily for Phase 2
+    # ner = extractNERtags(sentence, debugMode)
     NERtype = None
-    for (w, t) in ner:
-        if w == word: 
-            NERtype = t 
-            break 
+    # for (w, t) in ner:
+    #     if w == word: 
+    #         NERtype = t 
+    #         break 
     if NERtype == None:
         NERtype = NERdefault
     wInd = sentence.index(word)

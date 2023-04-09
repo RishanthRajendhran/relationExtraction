@@ -6,8 +6,6 @@ import nltk
 #   extractWords
 #Input:
 #   allSentences     :   List of sentences 
-#   debugMode        :   Boolean variable to enable debug mode
-#                        Default: False
 #Output:
 #   words    :   List of words
 #Description:
@@ -15,7 +13,7 @@ import nltk
 #   excluding stopwords and punctuations
 #Notes:
 #   None
-def extractWords(allSentences, debugMode=False):
+def extractWords(allSentences):
     stop = set(nltk.corpus.stopwords.words("english"))
     words = []
     for sent in allSentences:
@@ -25,6 +23,5 @@ def extractWords(allSentences, debugMode=False):
             if cw not in stop and cw not in string.punctuation:
                 words.append(cw)
     words = list(set(words))
-    if debugMode:
-        logging.info(f"{len(words)} words extracted from sentences!")
+    logging.debug(f"{len(words)} words extracted from sentences!")
     return words

@@ -6,6 +6,7 @@ import numpy as np
 import difflib
 import itertools
 import regex as re
+import nltk
 #For Transformer
 
 import tensorflow as tf 
@@ -21,3 +22,5 @@ import torch
 #For Transformer
 from sklearn import preprocessing
 from sklearn.utils import resample
+
+import spacy
